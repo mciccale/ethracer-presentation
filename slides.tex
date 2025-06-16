@@ -20,10 +20,57 @@
   These slides are based on the original work by~\citet{10.1145/3293882.3330560}.
 \end{frame}
 %
+\bgroup
+\let\oldfootnoterule\footnoterule
+\def\footnoterule{\only<4->\oldfootnoterule}
 \begin{frame}{Motivation}
+  \begin{itemize}
+  \item \alert{Smart contracts} (or \alert{contracts}) are stateful
+    programs (code $+$ data) that are \emph{stored} in the
+    \emph{blockchain} in a replicated fashion.
+  %
+  \pause\item \alert{Transactions} (invocations of \emph{contract code}) are
+    totally ordered, as agreed by the majority of miners.
+  %
+  \pause\item Thus, contracts can be used as \emph{automatic} and
+    \emph{trustworthy} \alert{mediators}.
+    %
+    E.g., \emph{voting}, \emph{distribution of rewards}, \ldots
+  %
+  \pause\item Contracts can be simultaneously invoked by multiple users at
+    once, and their execution order is \alert{non-deterministic}.
+  %
+  \pause\item Since contracts deal with money (in the form of
+    \emph{cryptocurrencies}), attacks exploiting vulnerabilities of
+    the blockchain or contracts often result in \alert{hundreds of
+      millions of dollars'} being \emph{stolen} or
+    \emph{lost}.\footnote<4->{See, for example,~\citep{dao}.}
+  %
+\pause\item Furthermore, contracts \emph{cannot} be \alert{patched} after
+    deployment, which gives rise to their audit and analysis \emph{before}
+    their deployment.
+  \end{itemize}
 \end{frame}
+\egroup
 %
 \begin{frame}{Problem Statement}
+  \begin{itemize}
+  \item This work focuses on \emph{detecting} a class of
+    vulnerabilities related to the contract's inherent
+    \alert{concurrent} execution model.
+    %
+    More specifically, if the re-ordering of transactions can lead to
+    different outcomes (reminds of partial order right?), which they call
+    \alert{event ordering} (EO) bugs.
+  %
+  \pause\item The challenge is the \alert{combinatorial blowup} of
+    the search-space for finding EO bugs.
+  \end{itemize}
+  %
+  \pause\vspace{1cm}
+  \begin{center}
+    \alert{DPOR}\ldots? \emoji{thinking-face} We'll see later!
+  \end{center}
 \end{frame}
 %
 \begin{frame}[fragile]{Illustrative Examples (I): Contract \texttt{Casino} with an asynchronous callback}
@@ -31,41 +78,54 @@
 contract Casino {
   function bet() payable {
     // make sure we can pay out the player
-    if (address(this).balance < msg.value * 100 ) throw; $\label{code1:betcheck}$
-    bytes32 oid = oraclize_query(...); // random $\label{code1:calloracle}$
+    if (address(this).balance < msg.value * 100) throw; $\label{code1:betcheck}$
+    bytes32 oid = oraclize_query(...); // asynchronous invokation for random number$\label{code1:calloracle}$
     bets[oid] = msg.value; $\label{code1:storebet1}$
     players[oid] = msg.sender; $\label{code1:storebet2}$ } $\label{code1:endbet}$
   function __callback(bytes32 myid, string result) $\label{code1:callback}$
     onlyOraclize onlyIfNotProcessed(myid) {
     ...
     if (parseInt(result) % 200 == 42) $\label{code1:wincheck}$
-    players[myid].send( bets[myid] * 100 ); $\label{code1:payout}$ }...}
+    players[myid].send(bets[myid] * 100); $\label{code1:payout}$ }...}
 \end{lstlisting}
+  %
+  \bigskip
+  %
+  \begin{itemize}
+  \pause\item Consider players 1 and 2, both betting 1 Ether.
+  \pause\item The trace $\langle\texttt{bet}_1; \texttt{bet}_2; \texttt{\_\_callback}_1; \texttt{\_\_callback}_2\rangle$
+    allows both bets to be placed, but if both win, player 2 will not be paid anything; whereas,
+  \pause\item the trace $\langle\texttt{bet}_1; \texttt{\_\_callback}_1; \texttt{bet}_2; \texttt{\_\_callback}_2\rangle$
+    would not let player 2 place the bet.
+  \end{itemize}
 \end{frame}
 %
-\begin{frame}[fragile]{Illustrative Examples (II): Contract \texttt{IOU} with on-chain transaction ordering}
-\begin{lstlisting}[mathescape=true,language=Solidity,basicstyle=\scriptsize\ttfamily]
-contract IOU {
- // Approves the transfer of tokens
- function approve(address _spender, uint256 _val) { $\label{code2:approve}$
-   allowed[msg.sender][_spender] = _val;
-   return true;  }
- // Transfers tokens
- function transferFrom(address _from, address _to,$\label{code2:transferFrom}$
-                       uint256 _val) {
-   require(allowed[_from][msg.sender] >= _val
-           && balances[_from] >= _val
-           && _val > 0);
-   balances[_from] -= _val;
-   balances[_to] += _val;
-   allowed [_from][msg.sender] -= _val; $\label{code2:updatebalance}$
-   return true;  }...}
-\end{lstlisting}
+% \begin{frame}[fragile]{Illustrative Examples (II): Contract \texttt{IOU} with on-chain transaction ordering}
+%   \begin{minipage}{.7\textwidth}
+% \begin{lstlisting}[mathescape=true,language=Solidity,basicstyle=\scriptsize\ttfamily]
+% contract IOU {
+%  // Approves the transfer of tokens
+%  function approve(address _spender, uint256 _val) { $\label{code2:approve}$
+%    allowed[msg.sender][_spender] = _val;
+%    return true;  }
+%  // Transfers tokens
+%  function transferFrom(address _from, address _to,$\label{code2:transferFrom}$
+%                        uint256 _val) {
+%    require(allowed[_from][msg.sender] >= _val
+%            && balances[_from] >= _val
+%            && _val > 0);
+%    balances[_from] -= _val;
+%    balances[_to] += _val;
+%    allowed [_from][msg.sender] -= _val; $\label{code2:updatebalance}$
+%    return true;  }...}
+% \end{lstlisting}
+%   \end{minipage}
+%   %
+%   \begin{minipage}{.25\textwidth}
+    
+%   \end{minipage}
 
-\end{frame}
-%
-\begin{frame}{Problem Statement}
-\end{frame}
+% \end{frame}
 %
 \begin{frame}{Key Insight}
 \end{frame}
