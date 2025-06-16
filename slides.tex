@@ -1,0 +1,119 @@
+\documentclass[9pt]{beamer}
+%
+\input{preamble}
+%
+\title{Exploiting the Laws of Order in Smart Contracts}
+\subtitle{\small An appetizer of the work by~\citet{10.1145/3293882.3330560}}
+\date{\today}
+\author{Marco Ciccalè Baztán (\href{mailto:m.ciccale@alumnos.upm.es}{m.ciccale@alumnos.upm.es})}
+\institute{Analysis of Concurrent and Distributed Systems,\\%
+  MSc in Formal Methods in Computer Science,\\%
+  Universidad Politécnica de Madrid}
+\titlegraphic{\hfill\includegraphics[height=2.2cm]{include/upm-T.png}}
+
+\begin{document}
+%
+\maketitle
+%
+\begin{frame}{Original Work}
+  \centering
+  These slides are based on the original work by~\citet{10.1145/3293882.3330560}.
+\end{frame}
+%
+\begin{frame}{Motivation}
+\end{frame}
+%
+\begin{frame}{Problem Statement}
+\end{frame}
+%
+\begin{frame}[fragile]{Illustrative Examples (I): Contract \texttt{Casino} with an asynchronous callback}
+\begin{lstlisting}[mathescape=true,language=Solidity,basicstyle=\scriptsize\ttfamily]
+contract Casino {
+  function bet() payable {
+    // make sure we can pay out the player
+    if (address(this).balance < msg.value * 100 ) throw; $\label{code1:betcheck}$
+    bytes32 oid = oraclize_query(...); // random $\label{code1:calloracle}$
+    bets[oid] = msg.value; $\label{code1:storebet1}$
+    players[oid] = msg.sender; $\label{code1:storebet2}$ } $\label{code1:endbet}$
+  function __callback(bytes32 myid, string result) $\label{code1:callback}$
+    onlyOraclize onlyIfNotProcessed(myid) {
+    ...
+    if (parseInt(result) % 200 == 42) $\label{code1:wincheck}$
+    players[myid].send( bets[myid] * 100 ); $\label{code1:payout}$ }...}
+\end{lstlisting}
+\end{frame}
+%
+\begin{frame}[fragile]{Illustrative Examples (II): Contract \texttt{IOU} with on-chain transaction ordering}
+\begin{lstlisting}[mathescape=true,language=Solidity,basicstyle=\scriptsize\ttfamily]
+contract IOU {
+ // Approves the transfer of tokens
+ function approve(address _spender, uint256 _val) { $\label{code2:approve}$
+   allowed[msg.sender][_spender] = _val;
+   return true;  }
+ // Transfers tokens
+ function transferFrom(address _from, address _to,$\label{code2:transferFrom}$
+                       uint256 _val) {
+   require(allowed[_from][msg.sender] >= _val
+           && balances[_from] >= _val
+           && _val > 0);
+   balances[_from] -= _val;
+   balances[_to] += _val;
+   allowed [_from][msg.sender] -= _val; $\label{code2:updatebalance}$
+   return true;  }...}
+\end{lstlisting}
+
+\end{frame}
+%
+\begin{frame}{Problem Statement}
+\end{frame}
+%
+\begin{frame}{Key Insight}
+\end{frame}
+%
+\begin{frame}{Main Contributions}
+\end{frame}
+%
+\begin{frame}{\textsc{EthRacer} Overview}
+\end{frame}
+%
+\begin{frame}{\textsc{EthRacer} Analysis Approach}
+\end{frame}
+%
+\begin{frame}{\textit{Happens-Before} Relation}
+\end{frame}
+%
+\begin{frame}{Linearizability in Callbacks}
+\end{frame}
+%
+\begin{frame}{Experimental Evaluation}
+\end{frame}
+%
+\begin{frame}{Example Results}
+\end{frame}
+%
+\begin{frame}{Comparison to Related Work}
+\end{frame}
+%
+\begin{frame}{Limitations and Future Work}
+\end{frame}
+%
+\begin{frame}{Conclusions}
+\end{frame}
+%
+\begin{frame}{}
+  \centering\huge\sffamily
+  \textbf{\structure{Thank You!\\Questions?}}
+\end{frame}
+%
+\begin{frame}[allowframebreaks]{}
+  \scriptsize
+  \bibliography{biblio.bib}
+  \bibliographystyle{abbrvnat}
+\end{frame}
+%
+\end{document}
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: t
+%%% End:
