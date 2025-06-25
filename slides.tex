@@ -263,13 +263,42 @@ contract Casino { // 100 Ethers!
   \end{definition}
 \end{frame}
 %
-\begin{frame}{\textsc{EthRacer}'s Algorithm (I): Symbolic event analysis}
-\end{frame}
-%
-\begin{frame}{\textsc{EthRacer}'s Algorithm (II): Concretization}
-\end{frame}
-%
-\begin{frame}{\textsc{EthRacer} Analysis Approach}
+\begin{frame}{\textsc{EthRacer}'s Algorithm}
+  \begin{enumerate}
+  \item<1-> \textbf{Symbolic event analysis}
+    %
+    \begin{enumerate}
+    \item<4-> \textbf{Syntactic analysis} to recover the \emph{public functions} of the
+    contract from the bytecode.  These are the \alert{entrypoints} of the
+    contract.
+    %
+    \item<5-> Using standard \textbf{dynamic symbolic execution}, for each entrypoint
+      $e_i$ of the contract, it gathers \alert{constraints} (as SMT formul\ae) down
+      all paths that over-approximate the set of values down each of the paths.
+    \end{enumerate}
+  %
+  \item<2-> \textbf{Concretization}
+    %
+    \begin{enumerate}
+    \item<6-> Check the \alert{feasibility} of each path constraints
+      using ``off-the-shelf'' SMT solvers for helping \emph{path
+        exploration}.
+    %
+    \item<7-> Generate \alert{concrete} value(s) for each path
+      constraints so that they can then be used for \emph{fuzzing} the
+      contract.  These values are also generated using SMT solvers,
+      and they are lifted to concrete events that can be directly
+      executed by the EVM.
+    \end{enumerate}
+  \item<9-> \alert{\bfseries Happens-before relations!}
+  \item<3-> \textbf{Fuzzing}
+    %
+    \begin{enumerate}
+    \item<8-> From the concrete values computed before, the contract
+      is \alert{fuzzed} for finding EO bugs, which are then flagged as
+      witnesses.
+    \end{enumerate}
+  \end{enumerate}
 \end{frame}
 %
 \begin{frame}{\textit{Happens-Before} Relation}
