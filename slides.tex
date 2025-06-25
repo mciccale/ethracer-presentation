@@ -17,12 +17,18 @@
 %
 \begin{frame}{Original Work}
   \centering
-  These slides are based on the original work by~\citet{10.1145/3293882.3330560}.
+  These slides are based on the original work by~\citet{10.1145/3293882.3330560}:
+  %
+  %
+  \medskip
+  %
+
+  \textsf{\bfseries Exploiting the Laws of Order in Smart Contracts}
 \end{frame}
 %
 \bgroup
 \let\oldfootnoterule\footnoterule
-\def\footnoterule{\only<4->\oldfootnoterule}
+\def\footnoterule{\only<5->\oldfootnoterule}
 \begin{frame}{Motivation}
   \begin{itemize}
   \item \alert{Smart contracts} (or \alert{contracts}) are stateful
@@ -40,11 +46,11 @@
   \pause\item Contracts can be simultaneously invoked by multiple users at
     once, and their execution order is \alert{non-deterministic}.
   %
-  \pause\item Since contracts deal with money (in the form of
-    \emph{cryptocurrencies}), attacks exploiting vulnerabilities of
-    the blockchain or contracts often result in \alert{hundreds of
+    \pause\item Since contracts deal with money (in the form of
+    \emph{cryptocurrencies}), attacks exploiting blockchains' or
+    contracts' vulnerabilities often result in \alert{hundreds of
       millions of dollars'} being \emph{stolen} or
-    \emph{lost}.\footnote<4->{See, for example,~\citep{dao}.}
+    \emph{lost}.\footnote<5->{See, for example,~\citep{dao}.}
   %
 \pause\item Furthermore, contracts \emph{cannot} be \alert{patched} after
     deployment, which gives rise to their audit and analysis \emph{before}
@@ -58,13 +64,18 @@
   \item This work focuses on \emph{detecting} a class of
     vulnerabilities related to the contract's inherent
     \alert{concurrent} execution model.
-    %
-    More specifically, if the re-ordering of transactions can lead to
-    different outcomes (reminds of partial order right?), which they call
+  %
+  \pause\item I.e., detecting if the re-ordering of events (function
+    invocations) can lead to different outcomes, which they call
     \alert{event ordering} (EO) bugs.
   %
-  \pause\item The challenge is the \alert{combinatorial blowup} of
-    the search-space for finding EO bugs.
+  \pause\item The challenge lies on how to explore the
+    \alert{combinatorial} search-space of event orderings
+    for finding EO bugs.
+  %
+  \pause\item For a typical contract with $20$ $2$-ary functions,
+  the number of traces composed of $6$ events is $\approx 2^{38}$.
+  \emoji{fearful-face}
   \end{itemize}
   %
   \pause\vspace{1cm}
@@ -73,31 +84,59 @@
   \end{center}
 \end{frame}
 %
-\begin{frame}[fragile]{Illustrative Examples (I): Contract \texttt{Casino} with an asynchronous callback}
-\begin{lstlisting}[mathescape=true,language=Solidity,basicstyle=\scriptsize\ttfamily]
-contract Casino {
+\begin{frame}[fragile]{Illustrative Example: Contract \texttt{Casino} with an asynchronous callback}
+\begin{lstlisting}[mathescape=true,language=Solidity,basicstyle=\footnotesize\ttfamily]
+contract Casino { // 100 Ethers!
   function bet() payable {
     // make sure we can pay out the player
     if (address(this).balance < msg.value * 100) throw; $\label{code1:betcheck}$
-    bytes32 oid = oraclize_query(...); // asynchronous invokation for random number$\label{code1:calloracle}$
+    // asynchronous invokation for random number
+    bytes32 oid = oraclize_query(...);$\label{code1:calloracle}$
     bets[oid] = msg.value; $\label{code1:storebet1}$
     players[oid] = msg.sender; $\label{code1:storebet2}$ } $\label{code1:endbet}$
   function __callback(bytes32 myid, string result) $\label{code1:callback}$
     onlyOraclize onlyIfNotProcessed(myid) {
     ...
-    if (parseInt(result) % 200 == 42) $\label{code1:wincheck}$
+    if (parseInt(result) % 200 == 0) $\label{code1:wincheck}$
     players[myid].send(bets[myid] * 100); $\label{code1:payout}$ }...}
 \end{lstlisting}
   %
-  \bigskip
+  \smallskip
   %
-  \begin{itemize}
-  \pause\item Consider players 1 and 2, both betting 1 Ether.
-  \pause\item The trace $\langle\texttt{bet}_1; \texttt{bet}_2; \texttt{\_\_callback}_1; \texttt{\_\_callback}_2\rangle$
-    allows both bets to be placed, but if both win, player 2 will not be paid anything; whereas,
-  \pause\item the trace $\langle\texttt{bet}_1; \texttt{\_\_callback}_1; \texttt{bet}_2; \texttt{\_\_callback}_2\rangle$
-    would not let player 2 place the bet.
-  \end{itemize}
+  Consider players \texttt{1} and \texttt{2}, both betting $1$ Ether:
+  %
+  \pause\smallskip
+  %
+  \begin{center}\small
+  \begin{tabular}{cc}
+      \textbf{Trace 1}
+    & \textbf{Trace 2}\\\hline\hline
+    %
+      \texttt{bet}$_{\texttt{1}}$\texttt{()}
+    & \texttt{bet}$_{\texttt{1}}$\texttt{()}\\
+    %
+      \texttt{bet}$_{\texttt{2}}$\texttt{()}
+    & \texttt{\_\_callback}\texttt{(1,0)}\\
+    %
+      \texttt{\_\_callback}\texttt{(1,0)}
+    & \texttt{bet}$_{\texttt{2}}$\texttt{()}\\
+    %
+      \texttt{\_\_callback}\texttt{(2,0)}
+    & \texttt{\_\_callback}\texttt{(2,0)}\\\hline\hline
+    %
+    \pause
+    %
+      Yields insufficient balance
+    & Declines the bet\\[-.5mm]
+    %
+      after paying off player $1$
+    & placed by player $2$\\[-.5mm]
+    %
+      (Line~\ref{code1:payout})
+    & (Line~\ref{code1:betcheck})
+  \end{tabular}
+  \end{center}
+  %
 \end{frame}
 %
 % \begin{frame}[fragile]{Illustrative Examples (II): Contract \texttt{IOU} with on-chain transaction ordering}
@@ -126,14 +165,108 @@ contract Casino {
 %   \end{minipage}
 
 % \end{frame}
-%
-\begin{frame}{Key Insight}
+\begin{frame}{Overview of the Approach: How to reduce the search space?}
+  \begin{itemize}
+  \item Dynamic testing approach for finding concrete
+    witnesses.\footnote{These witnesses would then be executed by
+      \emph{human} analysts for confirming or denying the existence of
+      an EO bug.}
+  %
+  \pause\item Given that functions are usually written in a certain
+    way s.t.~they \emph{induce} an \textbf{execution order relation},
+    capture this order between functions as a \alert{happens-before}
+    ($\mathit{hb}$) relation.
+    %
+    \pause
+    %
+    This way, if we find that two events $e_1$ and $e_2$ are in
+    $\mathit{hb}(e_1,e_2)$, it is possible to prune all permutations
+    that violate such ordering.  We'll see later how these
+    $\mathit{hb}$ relations can be induced.
+  %
+  \pause\item A trivial but effective insight is that events that
+    don't read / write global state can be \alert{reordered
+      arbitrarily}, thus they don't need to be taken into account when
+    finding $\mathit{hb}$ relations.
+  %
+  \pause\item When possible, \alert{linearize} traces with
+    asynchronous callbacks and treat them as ``canonical'' traces.
+  \end{itemize}
 \end{frame}
 %
-\begin{frame}{Main Contributions}
+\begin{frame}{Contract Concurrency Model}
+  \begin{itemize}
+  \item Events are executed \alert{atomically} and
+    \alert{deterministically}.
+  %
+  \pause\item A miner runs a function---conceptually as a
+    \emph{single threaded} transaction, with its given inputs until it
+    terminates \alert{succesfully} or by an \alert{exception}.
+  %
+  \pause\item The source of \emph{concurrency} lies in the nondeterministic
+    choices of each miner while ordering the transactions of a block.  
+  \end{itemize}
+  \[\rho \estep{e_1} \rho'\]
+  \[\rho \tstep{e_1} \rho'\]
 \end{frame}
 %
-\begin{frame}{\textsc{EthRacer} Overview}
+\begin{frame}{Formalization (I): Contracts, messages and events}
+  \begin{definition}[Contract]
+    A contract $c$ is a tuple $\langle \mathsf{id}, M, \rho \rangle$
+    where $\mathsf{id}$ is the contract identifier, $M$ its source
+    code, and $\rho$ its state, i.e., the balance and fields.
+  \end{definition}
+  %
+  \pause
+  %
+  \begin{definition}[Message]
+    A message $m$ is a tuple
+    $\langle \mathsf{sender}, \mathsf{to}, \mathsf{value},
+    \mathsf{fname}, \mathsf{data} \rangle$ representing the sender,
+    receiver, the amount of Ethers, the function name to invoke, and
+    its paremeters, respectively.
+  \end{definition}
+  %
+  \pause
+  %
+  \begin{definition}[Event]
+    An event $e$ for a contract $c$ is a message $m$ whose
+    $\mathsf{fname}$ field is a function name from the code of $c$.
+  \end{definition}
+\end{frame}
+%
+\begin{frame}{Formalization (II): Traces and event-ordering bugs}
+  \begin{definition}[Trace]
+    We use $\rho \estep{e} \rho'$ to indicate the run of an event
+    $e$ from a state $\rho$ to a state $\rho'$.
+    %
+    Naturally, $\rho_1 \tstep{h} \rho_n$ denotes the sequence of event
+    runs $\rho_1 \estep{e_1} \ldots \estep{e_n} \rho_n$
+    s.t.~$h = [e_1,\ldots,e_n]$.
+    %
+    And, $\rho_1 \tstep{h}$ \Lightning\ denotes a sequence of event runs
+    that ends by raising an exception.
+  \end{definition}
+  %
+  \pause
+  %
+  \begin{definition}[Event-Ordering Bug]
+    Given a contract $c$, a pair of \emph{valid} event traces
+    $h = [e_1,\ldots,e_n]$ and $h' = [e_1',\ldots,e_n']$
+    constitutes an \emph{event-ordering bug} iff:
+    %
+    \begin{itemize}
+    \item $h$ is a \emph{permutation} of $h'$, i.e., a reordering,
+    \item if $\rho_0 \tstep{h} \rho_n$ and
+      $\rho_0 \tstep{h'} \rho'_n$, then $\rho_n \neq \rho'_n$.
+    \end{itemize}
+  \end{definition}
+\end{frame}
+%
+\begin{frame}{\textsc{EthRacer}'s Algorithm (I): Symbolic event analysis}
+\end{frame}
+%
+\begin{frame}{\textsc{EthRacer}'s Algorithm (II): Concretization}
 \end{frame}
 %
 \begin{frame}{\textsc{EthRacer} Analysis Approach}
@@ -176,4 +309,5 @@ contract Casino {
 %%% Local Variables:
 %%% mode: LaTeX
 %%% TeX-master: t
+%%% TeX-engine: luatex
 %%% End:

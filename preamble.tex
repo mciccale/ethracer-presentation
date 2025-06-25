@@ -1,4 +1,6 @@
 \usetheme{metropolis}
+\usepackage{amsmath}
+\usepackage{mathtools}
 \usepackage{fontspec}
 \usepackage[noabbrev, capitalize]{cleveref}
 \usepackage{emoji}
@@ -59,8 +61,17 @@
   urlcolor=MyPurple,%
   filecolor=MyPurple,%
 }
+%
+\usepackage{marvosym}
+%
+\newcommand{\estep}[1]{\xrightarrow[\phantom{aa}]{#1}}
+\newcommand{\tstep}[1]{\xRightarrow[\phantom{aa}]{#1}}
+
+\setbeamercolor{block body}{bg=mDarkTeal!12}
+\setbeamercolor{block title}{bg=mDarkTeal,fg=black!2}
 
 %%% Local Variables:
 %%% mode: LaTeX
 %%% TeX-master: "slides"
+%%% TeX-engine: luatex
 %%% End:
